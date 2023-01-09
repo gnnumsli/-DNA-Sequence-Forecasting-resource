@@ -1,0 +1,718 @@
+function [Z] = ARFIMA_SIM(N,F,O,d,stdx,er)
+
+%The code performs the simulation of time series with autoregressive
+
+%fractionally integrated moving average (ARFIMA) models that generalize
+
+%ARIMA (autoregressive integrated moving average) and ARMA autoregressive
+
+%moving average models.  ARFIMA models allow non-integer values of the
+
+%differencing parameter and are useful in modeling time series with long memory.
+
+%The model is generally represented  as ARFIMA(p,d,q) model where d is the differencing parameter
+
+%and p and q are the order of the autoregressive and moving average parts of the model respectively.
+
+%%% INPUTS
+
+%%%->N =  # % Length of the time series we would like to generate  
+
+%%%->F = [ F1 F2 F3 .... ] % Parameters of the AR model, length(F) is the order p. Default p = 0
+
+%%%->O = [ O1 O2 O3 .... ] % Parameters of the MA model, length(O) is the order q. Default q = 0   
+
+%%%->d = # ; % Fractionally differencing parameter, default d = 0
+
+%%%->stdx = % Optional input: parameter to force the standard deviation of the
+
+%output time series. Impose std(Z)==stdx   
+
+%%%-->er = % Optional input: predefined time ser
+
+%%%%%%%%% THE ARFIMA PROCESS IS DEFINED AS:  
+
+%%%% F(B)[(1-B)^d]Z=O(B)er
+
+%%%% F(B)Z=[(1-B)^-d]O(B)er
+
+%%%%%%% where B is the backshift operator,
+
+%%%% F(B)= 1+ B F1 + B^2 F2 ... + B^p Fp --> AR PART
+
+%%%% O(B)= 1+ B O1 + B^2 O2 ... + B^q Oq --> MA PART  
+
+%%%% er = white noise, it can be specified as an input
+
+%%% Note that F(B) and O(B) are both defined with plus sign as in the "armax" function of matlab
+
+%and in  Box et al., (1994).
+
+%%% OUTPUTS
+
+%-->Z =  Time series simulated with the ARFIMA mo
+
+%%%%%%%%%% EXAMPLES
+
+%%% White noise
+
+%[Z] = ARFIMA_SIM(N);
+
+%%% AR(1) model
+
+%[Z] = ARFIMA_SIM(N,[F1]);
+
+%%% MA(1) model
+
+%[Z] = ARFIMA_SIM(N,[],[O1])
+
+%%% ARMA(2,2) model
+
+%[Z] = ARFIMA_SIM(N,[F1,F2],[O1,O2])
+
+%%% ARFIMA(0,d,0)
+
+%[Z] = ARFIMA_SIM(N,[],[],d)
+
+%%% ARFIMA(1,d,1)
+
+%[Z] = ARFIMA_SIM(N,[F1],[O1],d)
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%   Simone Fatichi -- simonef@dicea.unifi.it
+
+%   Copyright 2009
+
+%   $Date: 2009/10/19 $
+
+%%%inizialization
+
+X=zeros(1,N); Y=zeros(1,N); Z=zeros(1,N);
+
+%%%% FI(B)[(1-B)^d]Z=O(B)e
+
+%%%% FI(B)Z=[(1-B)^-d]O(B)e
+
+%%%% FI(B)= 1+ B F1 + B^2 F2 ...
+
+%%%% O(B) = 1+ B O1 + B^2 O2 ...
+
+switch nargin
+
+    case 1
+
+        d=0;
+
+        F=[];
+
+        O=[];
+
+        t=0;
+
+        stdx=NaN;
+
+    case 2
+
+        d = 0;
+
+        O =[];
+
+        t = 0;
+
+        stdx=NaN;
+
+    case 3
+
+        d = 0;
+
+        t=0;
+
+         stdx=NaN;
+
+    case 4
+
+        t=0;
+
+         stdx=NaN;
+
+    case 5
+
+        t=0;
+
+    case 6
+
+        t=1;
+
+    otherwise
+
+        msgbox('ERROR: Not enough or too much input arguments')
+
+        Z=[];
+
+        return
+
+end
+
+e=normrnd(0,1,N,1);
+
+if t==1
+
+    e=er;
+
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+if isempty(O) && isempty(F) && (d==0)
+
+    Z=e;
+
+    return
+
+end
+
+%%%%% N =length
+
+MA_ord=length(O);
+
+AR_ord=length(F);
+
+%%%%%%%%%%%% Computing part: MA(q)
+
+t=0;
+
+if MA_ord >= 1
+
+    for t=1:N
+
+        j=0;map=0;
+
+        for j=1:MA_ord
+
+            if t > j
+
+                map = map + O(j)*e(t-j);
+
+            end
+
+        end
+
+        X(t)= e(t)+ map;
+
+    end
+
+else
+
+    X=e;
+
+end
+
+t=0;
+
+%%%%%%%%%%% Computing part: d
+
+if d == 0
+
+    Y=X;
+
+else
+
+    infi =100; s=0;
+
+    for s=0:infi
+
+        %b(s+1)=((-1)^s)*gamma(-d+1)./(gamma(s+1)*gamma(-d-s+1));
+
+        b(s+1)=gamma(s+d)/(gamma(s+1)*gamma(d));
+
+    end
+
+    for t=1:N
+
+        Y(t)=0;
+
+        for s=0:infi
+
+            if t > s
+
+                Y(t)= Y(t)+ b(s+1)*X(t-s);
+
+            end
+
+        end
+
+    end
+
+end
+
+%%%%%%%%%%%%% Computing part: AR(p)
+
+t  = 0;
+
+if AR_ord >= 1
+
+    for t=1:N
+
+        j=0; arp=0;
+
+        for j=1:AR_ord
+
+            if t > j
+
+                arp = arp - F(j)*Z(t-j);
+
+            end
+
+        end
+
+        Z(t)= Y(t)+ arp;
+
+    end
+
+else
+
+    Z=Y;
+
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Z=Z';
+
+if not(isnan(stdx))
+
+    Z=Z*stdx/std(Z);
+
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+end
+
+% implementation of RNN
+clc
+clear
+close all
+%% training dataset generation
+binary_dim = 8;
+largest_number = 2^binary_dim-1;
+binary = cell(largest_number,1);
+int2binary = cell(largest_number,1);
+for i = 1:largest_number+1
+binary{i} = dec2bin(i-1, 8);
+int2binary{i} = binary{i};
+end
+%% input variables
+alpha = 0.1;
+input_dim = 2;
+hidden_dim = 16;
+output_dim = 1;
+%% initialize neural network weights
+synapse_0 = 2*rand(input_dim,hidden_dim) - 1;
+synapse_1 = 2*rand(hidden_dim,output_dim) - 1;
+synapse_h = 2*rand(hidden_dim,hidden_dim) - 1;
+synapse_0_update = zeros(size(synapse_0));
+synapse_1_update = zeros(size(synapse_1));
+synapse_h_update = zeros(size(synapse_h));
+%% train logic
+for j = 0:19999
+% generate a simple addition problem (a + b = c)
+a_int = randi(round(largest_number/2)); % int version
+a = int2binary{a_int+1}; % binary encoding
+b_int = randi(floor(largest_number/2)); % int version
+b = int2binary{b_int+1}; % binary encoding
+% true answer
+c_int = a_int + b_int;
+c = int2binary{c_int+1};
+% where we'll store our best guess (binary encoded)
+d = zeros(size(c));
+if length(d)<8
+pause;
+end
+overallError = 0;
+layer_2_deltas = [];
+layer_1_values = [];
+layer_1_values = [layer_1_values; zeros(1, hidden_dim)];
+% 开始对?个序列进?处理，搞清楚?个东西，?个LSTM单元的输出其实就是隐含层
+for position = 0:binary_dim-1
+X = [a(binary_dim - position)-'0' b(binary_dim - position)-'0']; % X 是 input
+y = [c(binary_dim - position)-'0']'; % Y 是label ，?来计算最后误差
+% 这?是RNN，因此隐含层?较简单
+% X ------------------------> input
+% sunapse_0 ----------------> U_i
+% layer_1_values(end, :) ---> previous hidden layer （S(t-1)）
+% synapse_h ----------------> W_i
+% layer_1 ------------------> new hidden layer (S(t))
+layer_1 = sigmoid(X*synapse_0 + layer_1_values(end, :)*synapse_h);
+% layer_1 ------------------> hidden layer (S(t))
+% layer_2 ------------------> 最终的输出结果，其维度应该与 label (Y) 的维度是?致的
+% 这?的 sigmoid 其实就是?个变换，将 hidden layer (size: 1 x 16) 变换为 1 x 1
+% 有写时候，如果输?与输出不匹配的话，使可以使? softmax 进?变化的
+% output layer (new binary representation)
+layer_2 = sigmoid(layer_1*synapse_1);
+% 计算误差，根据误差进?反向传播
+% layer_2_error ------------> 此次（第 position+1 次的误差）
+% l 是真实结果
+% layer_2 是输出结果
+% layer_2_deltas 输出层的变化结果，使?了反向传播，见那个求导（输出层的输?是 layer_2 ，那就对输?求导即可，然后乘以误差
+就可以得到输出的diff）
+% did we miss?... if so, by how much?
+layer_2_error = y - layer_2;
+layer_2_deltas = [layer_2_deltas; layer_2_error*sigmoid_output_to_derivative(layer_2)];
+% 总体的误差（误差有正有负，?绝对值）
+overallError = overallError + abs(layer_2_error(1));
+% decode estimate so we can print it out
+% 就是记录此位置的输出，?于显?结果
+d(binary_dim - position) = round(layer_2(1));
+% 记录下此次的隐含层 (S(t))
+% store hidden layer so we can use it in the next timestep
+layer_1_values = [layer_1_values; layer_1];
+end
+% 计算隐含层的diff，?于求参数的变化，并?来更新参数，还是每?个timestep 来进?计算
+future_layer_1_delta = zeros(1, hidden_dim);
+% 开始进?反向传播，计算 hidden_layer 的diff，以及参数的 diff
+for position = 0:binary_dim-1
+% 因为是通过输?得到隐含层，因此这?还是需要?到输?的
+% a -> (operation) -> y, x_diff = derivative(x) * y_diff
+% 注意这?从最后开始往前推
+X = [a(position+1)-'0' b(position+1)-'0'];
+% layer_1 -----------------> 表?隐含层 hidden_layer (S(t))
+% prev_layer_1 ------------> (S(t-1))
+layer_1 = layer_1_values(end-position, :);
+prev_layer_1 = layer_1_values(end-position-1, :);
+% layer_2_delta -----------> 就是隐含层的diff
+% hidden_layer_diff, 根据这个可以推_______________算输?的diff以及上?个隐含层的diff
+% error at output layer
+layer_2_delta = layer_2_deltas(end-position, :);
+% 这个地?的 hidden_layer 来?两个??，因为 hidden_layer -> next timestep, hidden_layer -> output ，
+% 因此其反向传播也是两??
+% error at hidden layer
+layer_1_delta = (future_layer_1_delta*(synapse_h') + layer_2_delta*(synapse_1')) ...
+.* sigmoid_output_to_derivative(layer_1);
+% let's update all our weights so we can try again
+synapse_1_update = synapse_1_update + (layer_1')*(layer_2_delta);
+synapse_h_update = synapse_h_update + (prev_layer_1')*(layer_1_delta);
+synapse_0_update = synapse_0_update + (X')*(layer_1_delta);
+future_layer_1_delta = layer_1_delta;
+end
+synapse_0 = synapse_0 + synapse_0_update * alpha;
+synapse_1 = synapse_1 + synapse_1_update * alpha;
+synapse_h = synapse_h + synapse_h_update * alpha;
+synapse_0_update = synapse_0_update * 0;
+synapse_1_update = synapse_1_update * 0;
+synapse_h_update = synapse_h_update * 0;
+if(mod(j,1000) == 0)
+err = sprintf('Error:%s\n', num2str(overallError)); fprintf(err);
+d = bin2dec(num2str(d));
+pred = sprintf('Pred:%s\n',dec2bin(d,8)); fprintf(pred);
+Tru = sprintf('True:%s\n', num2str(c)); fprintf(Tru);
+out = 0;
+size(c)
+sep = sprintf('-------------\n'); fprintf(sep);
+end
+end
+接下来就是LSTM的Matlab代码，我也进?了注释，?英?注释的，也?较容易懂：
+% implementation of LSTM
+clc
+clear
+close all
+%% training dataset generation
+binary_dim = 8;
+largest_number = 2^binary_dim - 1;
+binary = cell(largest_number, 1);
+for i = 1:largest_number + 1
+binary{i} = dec2bin(i-1, binary_dim);
+int2binary{i} = binary{i};
+end
+%% input variables
+alpha = 0.1;
+input_dim = 2;
+hidden_dim = 32;
+output_dim = 1;
+%% initialize neural network weights
+% in_gate = sigmoid(X(t) * U_i + H(t-1) * W_i) ------- (1)
+U_i = 2 * rand(input_dim, hidden_dim) - 1;
+W_i = 2 * rand(hidden_dim, hidden_dim) - 1;
+U_i_update = zeros(size(U_i));
+W_i_update = zeros(size(W_i));
+% forget_gate = sigmoid(X(t) * U_f + H(t-1) * W_f) ------- (2)
+U_f = 2 * rand(input_dim, hidden_dim) - 1;
+W_f = 2 * rand(hidden_dim, hidden_dim) - 1;
+U_f_update = zeros(size(U_f));
+W_f_update = zeros(size(W_f));
+% out_gate = sigmoid(X(t) * U_o + H(t-1) * W_o) ------- (3)
+U_o = 2 * rand(input_dim, hidden_dim) - 1;
+W_o = 2 * rand(hidden_dim, hidden_dim) - 1;
+U_o_update = zeros(size(U_o));
+W_o_update = zeros(size(W_o));
+% g_gate = tanh(X(t) * U_g + H(t-1) * W_g) ------- (4)
+U_g = 2 * rand(input_dim, hidden_dim) - 1;
+W_g = 2 * rand(hidden_dim, hidden_dim) - 1;
+U_g_update = zeros(size(U_g));
+W_g_update = zeros(size(W_g));
+out_para = 2 * rand(hidden_dim, output_dim) - 1;
+out_para_update = zeros(size(out_para));
+% C(t) = C(t-1) .* forget_gate + g_gate .* in_gate ------- (5)
+% S(t) = tanh(C(t)) .* out_gate ------- (6)
+% Out = sigmoid(S(t) * out_para) ------- (7)
+% Note: Equations (1)-(6) are cores of LSTM in forward, and equation (7) is
+% used to transfer hiddent layer to predicted output, i.e., the output layer.
+% (Sometimes you can use softmax for equation (7))
+%% train
+iter = 99999; % training iterations
+for j = 1:iter
+% generate a simple addition problem (a + b = c)
+a_int = randi(round(largest_number/2)); % int version
+a = int2binary{a_int+1}; % binary encoding
+b_int = randi(floor(largest_number/2)); % int version
+b = int2binary{b_int+1}; % binary encoding
+% true answer
+c_int = a_int + b_int; % int version
+c = int2binary{c_int+1}; % binary encoding
+% where we'll store our best guess (binary encoded)
+d = zeros(size(c));
+if length(d)<8
+pause;
+end
+% total error
+overallError = 0;
+% difference in output layer, i.e., (target - out)
+output_deltas = [];
+% values of hidden layer, i.e., S(t)
+hidden_layer_values = [];
+cell_gate_values = [];
+% initialize S(0) as a zero-vector
+hidden_layer_values = [hidden_layer_values; zeros(1, hidden_dim)];
+cell_gate_values = [cell_gate_values; zeros(1, hidden_dim)];
+% initialize memory gate
+% hidden layer
+H = [];
+H = [H; zeros(1, hidden_dim)];
+% cell gate
+C = [];
+C = [C; zeros(1, hidden_dim)];
+% in gate
+I = [];
+% forget gate
+F = [];
+% out gate
+O = [];
+% g gate
+G = [];
+% start to process a sequence, i.e., a forward pass
+% Note: the output of a LSTM cell is the hidden_layer, and you need to
+% transfer it to predicted output
+for position = 0:binary_dim-1
+% X ------> input, size: 1 x input_dim
+X = [a(binary_dim - position)-'0' b(binary_dim - position)-'0'];
+% y ------> label, size: 1 x output_dim
+y = [c(binary_dim - position)-'0']';
+% use equations (1)-(7) in a forward pass. here we do not use bias
+in_gate = sigmoid(X * U_i + H(end, :) * W_i); % equation (1)
+forget_gate = sigmoid(X * U_f + H(end, :) * W_f); % equation (2)
+out_gate = sigmoid(X * U_o + H(end, :) * W_o); % equation (3)
+g_gate = tan_h(X * U_g + H(end, :) * W_g); % equation (4)
+C_t = C(end, :) .* forget_gate + g_gate .* in_gate; % equation (5)
+H_t = tan_h(C_t) .* out_gate; % equation (6)
+% store these memory gates
+I = [I; in_gate];
+F = [F; forget_gate];
+O = [O; out_gate];
+G = [G; g_gate];
+C = [C; C_t];
+H = [H; H_t];
+% compute predict output
+pred_out = sigmoid(H_t * out_para);
+% compute error in output layer
+output_error = y - pred_out;
+% compute difference in output layer using derivative
+% output_diff = output_error * sigmoid_output_to_derivative(pred_out);
+output_deltas = [output_deltas; output_error];
+% compute total error
+% note that if the size of pred_out or target is 1 x n or m x n,
+% you should use other approach to compute error. here the dimension
+% of pred_out is 1 x 1
+overallError = overallError + abs(output_error(1));
+% decode estimate so we can print it out
+d(binary_dim - position) = round(pred_out);
+end
+% from the last LSTM cell, you need a initial hidden layer difference
+future_H_diff = zeros(1, hidden_dim);
+% stare back-propagation, i.e., a backward pass
+% the goal is to compute differences and use them to update weights
+% start from the last LSTM cell
+for position = 0:binary_dim-1
+X = [a(position+1)-'0' b(position+1)-'0'];
+% hidden layer
+H_t = H(end-position, :); % H(t)
+% previous hidden layer
+H_t_1 = H(end-position-1, :); % H(t-1)
+C_t = C(end-position, :); % C(t)
+C_t_1 = C(end-position-1, :); % C(t-1)
+O_t = O(end-position, :);
+F_t = F(end-position, :);
+G_t = G(end-position, :);
+I_t = I(end-position, :);
+% output layer difference
+output_diff = output_deltas(end-position, :);
+% hidden layer difference
+% note that here we consider one hidden layer is input to both
+% output layer and next LSTM cell. Thus its difference also comes
+% from two sources. In some other method, only one source is taken
+% into consideration.
+% use the equation: delta(l) = (delta(l+1) * W(l+1)) .* f'(z) to
+% compute difference in previous layers. look for more about the
+% proof at http://neuralnetworksanddeeplearning.com/chap2.html
+% H_t_diff = (future_H_diff * (W_i' + W_o' + W_f' + W_g') + output_diff * out_para') ...
+% .* sigmoid_output_to_derivative(H_t);
+% H_t_diff = output_diff * (out_para') .* sigmoid_output_to_derivative(H_t);
+H_t_diff = output_diff * (out_para') .* sigmoid_output_to_derivative(H_t);
+% out_para_diff = output_diff * (H_t) * sigmoid_output_to_derivative(out_para);
+out_para_diff = (H_t') * output_diff;
+% out_gate diference
+O_t_diff = H_t_diff .* tan_h(C_t) .* sigmoid_output_to_derivative(O_t);
+% C_t difference
+C_t_diff = H_t_diff .* O_t .* tan_h_output_to_derivative(C_t);
+% % C(t-1) difference
+% C_t_1_diff = C_t_diff .* F_t;
+% forget_gate_diffeence
+F_t_diff = C_t_diff .* C_t_1 .* sigmoid_output_to_derivative(F_t);
+% in_gate difference
+I_t_diff = C_t_diff .* G_t .* sigmoid_output_to_derivative(I_t);
+% g_gate difference
+G_t_diff = C_t_diff .* I_t .* tan_h_output_to_derivative(G_t);
+% differences of U_i and W_i
+U_i_diff = X' * I_t_diff .* sigmoid_output_to_derivative(U_i);
+W_i_diff = (H_t_1)' * I_t_diff .* sigmoid_output_to_derivative(W_i);
+% differences of U_o and W_o
+U_o_diff = X' * O_t_diff .* sigmoid_output_to_derivative(U_o);
+W_o_diff = (H_t_1)' * O_t_diff .* sigmoid_output_to_derivative(W_o);
+% differences of U_o and W_o
+U_f_diff = X' * F_t_diff .* sigmoid_output_to_derivative(U_f);
+W_f_diff = (H_t_1)' * F_t_diff .* sigmoid_output_to_derivative(W_f);
+% differences of U_o and W_o
+U_g_diff = X' * G_t_diff .* tan_h_output_to_derivative(U_g);
+W_g_diff = (H_t_1)' * G_t_diff .* tan_h_output_to_derivative(W_g);
+% update
+U_i_update = U_i_update + U_i_diff;
+W_i_update = W_i_update + W_i_diff;
+U_o_update = U_o_update + U_o_diff;
+W_o_update = W_o_update + W_o_diff;
+U_f_update = U_f_update + U_f_diff;
+W_f_update = W_f_update + W_f_diff;
+U_g_update = U_g_update + U_g_diff;
+W_g_update = W_g_update + W_g_diff;
+out_para_update = out_para_update + out_para_diff;
+end
+U_i = U_i + U_i_update * alpha;
+W_i = W_i + W_i_update * alpha;
+U_o = U_o + U_o_update * alpha;
+W_o = W_o + W_o_update * alpha;
+U_f = U_f + U_f_update * alpha;
+W_f = W_f + W_f_update * alpha;
+U_g = U_g + U_g_update * alpha;
+W_g = W_g + W_g_update * alpha;
+out_para = out_para + out_para_update * alpha;
+U_i_update = U_i_update * 0;
+W_i_update = W_i_update * 0;
+U_o_update = U_o_update * 0;
+W_o_update = W_o_update * 0;
+U_f_update = U_f_update * 0;
+W_f_update = W_f_update * 0;
+U_g_update = U_g_update * 0;
+W_g_update = W_g_update * 0;
+out_para_update = out_para_update * 0;
+if(mod(j,1000) == 0)
+err = sprintf('Error:%s\n', num2str(overallError)); fprintf(err);
+d = bin2dec(num2str(d));
+pred = sprintf('Pred:%s\n',dec2bin(d,8)); fprintf(pred);
+Tru = sprintf('True:%s\n', num2str(c)); fprintf(Tru);
+out = 0;
+sep = sprintf('-------------\n'); fprintf(sep);
+end
+end
+
+
+
+
+%% 通用matlab脚本三连
+clear
+clc
+close all
+ 
+%% 加载序列数据
+% 加载日语元音训练数据。XTrain 是包含 270 个不同长度的 12 维序列的元胞数组。
+% Y 是对应于九个说话者的标签 "1"、"2"、...、"9" 的分类向量。
+% XTrain 中的条目是具有 12 行（每个特征一行）和不同列数（每个时间步一列）的矩阵。
+[XTrain,YTrain] = japaneseVowelsTrainData;
+XTrain(1:5)
+ 
+%% 在绘图中可视化第一个时序。每行对应一个特征。
+figure
+plot(XTrain{1}')
+xlabel("Time Step")
+title("Training Observation 1")
+legend("Feature " + string(1:12),'Location','northeastoutside')
+%% 准备要填充的数据
+numObservations = numel(XTrain);
+for i=1:numObservations
+    sequence = XTrain{i};
+    sequenceLengths(i) = size(sequence,2);
+end
+%% 按序列长度对数据进行排序。
+[sequenceLengths,idx] = sort(sequenceLengths);
+XTrain = XTrain(idx);
+YTrain = YTrain(idx);
+%% 在条形图中查看排序的序列长度。
+figure
+bar(sequenceLengths)
+ylim([0 30])
+xlabel("Sequence")
+ylabel("Length")
+title("Sorted Data")
+%% 选择小批量大小 27 以均匀划分训练数据，并减少小批量中的填充量。下图说明了添加到序列中的填充。
+miniBatchSize = 27;
+%% 定义 LSTM 网络架构
+inputSize = 12;
+numHiddenUnits = 100;
+numClasses = 9;
+layers = [ ...
+    sequenceInputLayer(inputSize)
+    bilstmLayer(numHiddenUnits,'OutputMode','last')
+    fullyConnectedLayer(numClasses)
+    softmaxLayer
+    classificationLayer]
+maxEpochs = 100;
+miniBatchSize = 27;
+%% 指定训练选项
+options = trainingOptions('adam', ...
+    'ExecutionEnvironment','cpu', ...
+    'GradientThreshold',1, ...
+    'MaxEpochs',maxEpochs, ...
+    'MiniBatchSize',miniBatchSize, ...
+    'SequenceLength','longest', ...
+    'Shuffle','never', ...
+    'Verbose',0, ...
+    'Plots','training-progress');
+%% 训练 LSTM 网络
+net = trainNetwork(XTrain,YTrain,layers,options);
+%% 测试 LSTM 网络
+[XTest,YTest] = japaneseVowelsTestData;
+XTest(1:3)
+%% LSTM 网络 net 已使用相似长度的小批量序列进行训练
+numObservationsTest = numel(XTest);
+for i=1:numObservationsTest
+    sequence = XTest{i};
+    sequenceLengthsTest(i) = size(sequence,2);
+end
+[sequenceLengthsTest,idx] = sort(sequenceLengthsTest);
+XTest = XTest(idx);
+YTest = YTest(idx);
+%% 对测试数据进行分类
+miniBatchSize = 27;
+YPred = classify(net,XTest, ...
+    'MiniBatchSize',miniBatchSize, ...
+    'SequenceLength','longest');
+%% 计算预测值的分类准确度。
+acc = sum(YPred == YTest)./numel(YTest)
